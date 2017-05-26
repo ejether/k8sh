@@ -26,7 +26,7 @@ kubectl --context=prod --namespace=test > get pods
 # Requirements
 
 'k8sh' requires:
-*`kubectl` binary must be installed and available on the $PATH
+* `kubectl` binary must be installed and available on the $PATH
 * python 2.7
 * a valid kubeconfg at `~/.kube/config` or path set in the environment variable `$KUBECONFIG` 
 
