@@ -1,0 +1,261 @@
+#!/usr/bin/env python
+
+import cmd
+import subprocess
+import os
+import yaml
+import readline
+import traceback
+
+
+class KubectlShell(cmd.Cmd):
+    """ Interactive shell for Kubectl """
+
+    readline.set_completer_delims(' ') # allow auto complete objects that have - and / in them
+
+    base_prompt = 'kubectl'
+    _kubeconfig = None
+    
+    _clusters = []
+    
+    _contexts = []
+    _current_context = None
+        
+    _namespaces = []
+    _current_namespace = None
+
+    _pods = []
+
+    _kubernetes_objects = [
+        'certificatesigningrequest',  
+        'event',
+        'pod',
+        'service',
+        'cluster',
+        'horizontalpodautoscaler',
+        'poddisruptionbudget',
+        'serviceaccount',
+        'clusterrole',
+        'ingress',
+        'podsecuritypolicy',
+        'statefulset',
+        'clusterrolebinding',
+        'job',
+        'podtemplate',
+        'status',
+        'componentstatus',
+        'limitrange',
+        'replicaset',
+        'storageclass',
+        'configmap',
+        'namespace',
+        'replicationcontroller',
+        'thirdpartyresource',
+        'cronjob',
+        'networkpolicy',
+        'resourcequota',
+        'thirdpartyresourcedata',
+        'daemonset',
+        'node',
+        'role',
+        'deployment',
+        'persistentvolume',
+        'rolebinding',
+        'endpoints',
+        'persistentvolumeclaim',
+        'secret'
+        ]
+
+    _kubectl_methods = [
+        'annotate',
+        'autoscale',
+        'convert',
+        'describe',
+        'expose',
+        'patch',
+        'rollout'
+        'top',
+        'api-versions',
+        'certificate',
+        'cordon',
+        'drain',
+        'get',
+        'port-forward',
+        'run',
+        'uncordon',
+        'apply',
+        'cluster-info',
+        'cp',
+        'edit',
+        'label',
+        'proxy',
+        'scale',
+        'version',
+        'attach',
+        'completion',
+        'create',
+        'exec',
+        'logs',
+        'replace',
+        'set',
+        'auth',
+        'config',
+        'delete',
+        'explain',
+        'options',
+        'rolling-update',
+        'taint'
+        ]
+
+    def completenames(self, text, *ignored):
+        all_commands = [a[3:] for a in self.get_names() if a.startswith('do')] + self._kubectl_methods
+        return [c for c in all_commands if c.startswith(text)]
+    
+    def preloop(self):
+        self._contexts = []
+        with open(self.kubeconfig) as kubeconfig:
+            self.k_data = yaml.safe_load(kubeconfig)
+
+    def default(self,line):
+        print self.run_command(*line.split())
+
+    def completedefault(self, text, line, begidx, endidx):
+        return [i for i in self._kubectl_methods if i.startswith(text)]
+
+    def do_test(self, line):
+        print self.completenames(line)
+
+    def do_get(self,line):
+        print self.run_command('get', *line.split())
+        
+    def complete_get(self, text, line, begidx, endidx):
+        return self._complete_command(text, line, begidx, endidx)
+    
+    def do_describe(self,line):
+        print self.run_command('describe', *line.split())
+        
+    def complete_describe(self, text, line, begidx, endidx):
+        return self._complete_command(text, line, begidx, endidx)
+            
+    def do_create(self,line):
+        print self.run_command('create', *line.split())
+
+    def _complete_get_object(self, obj, text, line, begidx, endidx):
+        return [i for i in self._get_objects(obj) if i.startswith(text)]
+
+    def _complete_command(self, text, line, begidx, endidx):
+        
+        obj = None
+        item = None
+
+        line_list = line.split()
+        try:    
+            obj = line_list[1]
+        except IndexError,e :
+            pass
+
+        try:    
+            item = line_list[2]
+        except IndexError,e :
+            pass
+
+        if (not text or item) and obj in self._kubernetes_objects  :
+            return self._complete_get_object(obj, text, line, begidx, endidx)
+        else:
+            return [i for i in self._kubernetes_objects if i.startswith(text)]
+
+    def do_set_namespace(self, line):	
+        self._current_namespace=line
+    	print(self._current_namespace)
+
+    def complete_set_namespace(self, text, line, begidx, endidx):
+        return [i for i in self.namespaces if i.startswith(text)]
+
+    def do_set_context(self, line):   
+        self._current_context=line
+        print(self._current_context)
+        self._namespaces = []
+
+    def complete_set_context(self, text, line, begidx, endidx):
+        return [i for i in self.contexts if i.startswith(text)]
+
+    def run_command(self, *args):
+        try:
+            _command = self.base_command
+            _command.extend(args)
+            out = subprocess.check_output(filter(None,_command))
+            return out
+        except Exception, e:
+            print e
+            #print traceback.format_exc()
+            return ''
+    
+    def _get_objects(self,obj):
+        _objs = []
+        out = self.run_command('get',obj)
+        for o in out.split('\n')[1:-1]:
+            _objs.append(o.split(" ")[0])
+        return _objs
+
+    @property
+    def pods(self):
+        out = self.run_command('get','pod')
+        for pod in out.split('\n')[1:-1]:
+            self._pods.append(pod.split(" ")[0])
+        return self._pods
+
+    @property
+    def contexts(self):
+        if not self._contexts:
+            for context in self.k_data['contexts']:
+                self._contexts.append(context['name'])
+        return self._contexts
+
+    @property    
+    def clusters(self):
+        if not self._clusters:
+            for cluster in self.k_data['clusters']:
+                self._clusters.append(cluster['name'])
+        return self._clusters
+    
+    @property
+    def namespaces(self):
+        if not self._namespaces:
+            out = self.run_command('get','namespaces')
+            
+            for ns in out.split('\n')[1:-1]:
+                self._namespaces.append(ns.split(" ")[0])
+        return self._namespaces
+
+    @property
+    def current_context(self):
+        if not self._current_context:
+            self._current_context = self.k_data['current-context']
+        return self._current_context
+
+    @property
+    def prompt(self):
+        return "{} >".format(' '.join(self.base_command))
+
+    @property
+    def kubeconfig(self):
+        if not self._kubeconfig:
+            if os.environ.get('KUBECONFIG',False):
+                self._kubeconfig = os.environ.get('KUBECONFIG')
+            elif os.path.isfile(os.path.expanduser('~/.kube/config')):
+                self._kubeconfig = os.path.expanduser('~/.kube/config')
+
+        return self._kubeconfig
+    
+    @property
+    def base_command(self):
+    	command = ['kubectl']
+        command += ['--context={}'.format(self.current_context)]
+
+    	if self._current_namespace:
+    		command += ['--namespace={}'.format(self._current_namespace)]
+
+        return command
+
+if __name__ == '__main__':
+    KubectlShell().cmdloop()
