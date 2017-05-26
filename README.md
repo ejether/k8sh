@@ -16,8 +16,12 @@ kubectl --context=prod --namespace=test > get pods
 `k8sh` offers:
 * constant reminder of your conext and namespace (if set)
 * tab completion of all normal kubectl methods
-    * currently only `get` and `describe` will auto complete kubernetes objects
+    * currently only `get` and `describe` will auto complete existing kubernetes objects
 * normal command line options and arguments are passed transparently
+
+# Installation
+
+```pip install git+git://github.com/ejether/k8sh.git```
 
 # Requirements
 
@@ -28,5 +32,5 @@ kubectl --context=prod --namespace=test > get pods
 
 
 # Known issues
-1: Limited support for the flexible plurality that `kubectl` offers i.e pod vs pods. `k8sh` will still pass the plural version through to `kubectl` but it will not tab complete for existing kubernetes objects
+1. Limited support for the flexible plurality that `kubectl` offers i.e pod vs pods. `k8sh` will still pass the plural version through to `kubectl` but it will not tab complete for existing kubernetes objects
 
