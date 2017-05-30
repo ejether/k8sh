@@ -21,11 +21,11 @@ kubectl --context=prod --namespace=test > get pods
 
 # Installation
 
-```pip install git+git://github.com/ejether/k8sh.git```
+```pip install -U git+git://github.com/ejether/k8sh.git```
 
 # Requirements
 
-'k8sh' requires:
+`k8sh` requires:
 * `kubectl` binary must be installed and available on the $PATH
 * python 2.7
 * a valid kubeconfg at `~/.kube/config` or path set in the environment variable `$KUBECONFIG` 
