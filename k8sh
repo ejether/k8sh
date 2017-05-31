@@ -6,9 +6,11 @@ import os
 import yaml
 import readline
 import traceback
+import atexit
 
 
-class KubectlShell(cmd.Cmd):
+
+class KubectlShell(cmd.Cmd, object):
     """ Interactive shell for Kubectl """
 
     readline.set_completer_delims(' ') # allow auto complete objects that have - and / in them
@@ -25,6 +27,7 @@ class KubectlShell(cmd.Cmd):
     _current_namespace = None
 
     _pods = []
+
 
     _kubernetes_objects = [
         'certificatesigningrequest',  
@@ -107,14 +110,26 @@ class KubectlShell(cmd.Cmd):
         'taint'
         ]
 
-    def completenames(self, text, *ignored):
-        all_commands = [a[3:] for a in self.get_names() if a.startswith('do')] + self._kubectl_methods
-        return [c for c in all_commands if c.startswith(text)]
+
+    def cmdloop(self, intro=None):
+        print "Welcome k8sh."
+        while True:
+            try:
+                super(KubectlShell, self).cmdloop(intro="")
+                self.postloop()
+                break
+            except KeyboardInterrupt:
+                print("")
+                pass
     
     def preloop(self):
         self._contexts = []
         with open(self.kubeconfig) as kubeconfig:
             self.k_data = yaml.safe_load(kubeconfig)
+
+    def completenames(self, text, *ignored):
+        all_commands = [a[3:] for a in self.get_names() if a.startswith('do')] + self._kubectl_methods
+        return [c for c in all_commands if c.startswith(text)]
 
     def default(self,line):
         print self.run_command(*line.split())
@@ -196,6 +211,13 @@ class KubectlShell(cmd.Cmd):
         for o in out.split('\n')[1:-1]:
             _objs.append(o.split(" ")[0])
         return _objs
+
+    def do_exit(self,line):
+        return self.do_EOF()
+
+    def do_EOF(self, line=None):
+        print "Good Bye"
+        return True
 
     @property
     def pods(self):
