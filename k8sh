@@ -7,6 +7,49 @@ import yaml
 import readline
 import traceback
 import atexit
+import logging
+
+# logging.basicConfig(filename='k8sh_debug.log',level=logging.DEBUG)
+
+class KubectlLine():
+
+    def __init__(self,line,is_completer=False):
+        self._line_list = line.split()
+        self.is_completer = is_completer
+       
+    @property
+    def object(self):
+        try:    
+            if self.is_completer:
+                return self._line_list[1].strip()
+            else:
+                return self._line_list[0].strip()
+        except IndexError,e :
+            pass
+        
+        return None
+
+    @property
+    def command(self):
+        try:    
+            if self.is_completer:
+                return self._line_list[0].strip()
+        except IndexError,e :
+            pass
+
+        return None
+
+    @property
+    def value(self):
+        try:    
+            if self.is_completer:
+                return self._line_list[2].strip()
+            else:
+                return self._line_list[1].strip()
+        except IndexError,e :
+            pass
+        
+        return None
 
 
 
@@ -16,6 +59,7 @@ class KubectlShell(cmd.Cmd, object):
     readline.set_completer_delims(' ') # allow auto complete objects that have - and / in them
 
     base_prompt = 'kubectl'
+    parsed_line = None
     _kubeconfig = None
     
     _clusters = []
@@ -28,6 +72,7 @@ class KubectlShell(cmd.Cmd, object):
 
     _pods = []
 
+    _settables = ['context', 'namespace']
 
     _kubernetes_objects = [
         'certificatesigningrequest',  
@@ -112,24 +157,28 @@ class KubectlShell(cmd.Cmd, object):
 
 
     def cmdloop(self, intro=None):
-        print "Welcome k8sh."
+        print "Welcome to k8sh."
         while True:
             try:
                 super(KubectlShell, self).cmdloop(intro="")
                 self.postloop()
                 break
             except KeyboardInterrupt:
-                print("")
+                print ""
                 pass
     
     def preloop(self):
         self._contexts = []
+        self._all_commands = [a[3:] for a in self.get_names() if a.startswith('do')] + self._kubectl_methods
         with open(self.kubeconfig) as kubeconfig:
             self.k_data = yaml.safe_load(kubeconfig)
 
+    def precmd(self, line):
+        print ''
+        return line
+
     def completenames(self, text, *ignored):
-        all_commands = [a[3:] for a in self.get_names() if a.startswith('do')] + self._kubectl_methods
-        return [c for c in all_commands if c.startswith(text)]
+        return [com for com in self._all_commands if com.startswith(text)]
 
     def default(self,line):
         print self.run_command(*line.split())
@@ -141,12 +190,24 @@ class KubectlShell(cmd.Cmd, object):
         print self.completenames(line)
 
     def do_get(self,line):
+        """ 
+        Usage: get <kube_object_type> [<object>].
+        Example: get pods
+        Gets a list of the objects matching that type. 
+        If an objet name or list of object names are provided, it returns only those objects 
+        """
         print self.run_command('get', *line.split())
         
-    def complete_get(self, text, line, begidx, endidx):
+    def complete_get(self, text, line, begidx, endidx):         
         return self._complete_command(text, line, begidx, endidx)
-    
+   
     def do_describe(self,line):
+        """ 
+        Usage: describe <kube_object_type> [<object>].
+        Example: descrive deployments
+        Describes a list of the objects matching that type. 
+        If an objet name or list of object names are provided, it describes only those objects 
+        """
         print self.run_command('describe', *line.split())
         
     def complete_describe(self, text, line, begidx, endidx):
@@ -159,25 +220,36 @@ class KubectlShell(cmd.Cmd, object):
         return [i for i in self._get_objects(obj) if i.startswith(text)]
 
     def _complete_command(self, text, line, begidx, endidx):
-        
-        obj = None
-        item = None
-
-        line_list = line.split()
-        try:    
-            obj = line_list[1]
-        except IndexError,e :
-            pass
-
-        try:    
-            item = line_list[2]
-        except IndexError,e :
-            pass
-
-        if (not text or item) and obj in self._kubernetes_objects  :
-            return self._complete_get_object(obj, text, line, begidx, endidx)
+        if (not text or parsed_line.item) and parsed_line.object in self._kubernetes_objects  :
+            return self._complete_get_object(parsed_line.object, text, line, begidx, endidx)
         else:
             return [i for i in self._kubernetes_objects if i.startswith(text)]
+
+    def do_unset(self, line):
+        if line in self._settables:
+            settable = getattr(self,'do_set_{}'.format(line))
+            settable("")
+            print("Setting {} back to kube_config default".format(line))
+        else:
+            print("\"{}\" is not one of the settable attributes.".format(line))
+
+    def complete_unset(self, text, line, begidx, endidx):
+        return [i for i in self._settables if i.startswith(text)]
+    
+    # def do_set(self, line):
+    #     parsed_line = self.parse_line(line)
+    #     if parsed_line.object in self._settables:
+    #         settable = getattr(self,'do_set_{}'.format(parsed_line.object))
+    #         settable(parsed_line.value)
+
+    # def complete_set(self, text, line, begidx, endidx):
+    #     parsed_line = self.parse_line(line)
+    #     logging.debug('Text: "{}" Line: "{}" '.format(text, line) )
+    #     if parsed_line.object in self._settables:
+    #         completer = getattr(self,'complete_set_{}'.format(parsed_line.object))
+    #         return completer(text, parsed_line.value, begidx, endidx)
+
+        return [i for i in self._settables if i.startswith(text)]
 
     def do_set_namespace(self, line):	
         self._current_namespace=line
@@ -188,7 +260,7 @@ class KubectlShell(cmd.Cmd, object):
 
     def do_set_context(self, line):   
         self._current_context=line
-        print(self._current_context)
+        #print(self._current_context)
         self._namespaces = []
 
     def complete_set_context(self, text, line, begidx, endidx):
@@ -218,6 +290,20 @@ class KubectlShell(cmd.Cmd, object):
     def do_EOF(self, line=None):
         print "Good Bye"
         return True
+
+    def parse_line(self,line):
+        thing_the_first = False
+        try:
+            thing_the_first = line.split()[0]
+        except IndexError:
+            pass
+
+        is_completer = False
+        if thing_the_first in self._all_commands:
+            is_completer = True
+        
+        self.parsed_line = KubectlLine(line, is_completer)       
+        return self.parsed_line
 
     @property
     def pods(self):
@@ -278,6 +364,7 @@ class KubectlShell(cmd.Cmd, object):
     		command += ['--namespace={}'.format(self._current_namespace)]
 
         return command
+
 
 if __name__ == '__main__':
     KubectlShell().cmdloop()
