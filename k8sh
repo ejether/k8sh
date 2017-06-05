@@ -169,7 +169,7 @@ class KubectlShell(cmd.Cmd, object):
     
     def preloop(self):
         self._contexts = []
-        self._all_commands = [a[3:] for a in self.get_names() if a.startswith('do')] + self._kubectl_methods
+        self._all_commands = self._k8sh_methods + self._kubectl_methods
         with open(self.kubeconfig) as kubeconfig:
             self.k_data = yaml.safe_load(kubeconfig)
 
@@ -185,9 +185,6 @@ class KubectlShell(cmd.Cmd, object):
 
     def completedefault(self, text, line, begidx, endidx):
         return [i for i in self._kubectl_methods if i.startswith(text)]
-
-    def do_test(self, line):
-        print self.completenames(line)
 
     def do_get(self,line):
         """ 
@@ -216,21 +213,31 @@ class KubectlShell(cmd.Cmd, object):
     def do_create(self,line):
         print self.run_command('create', *line.split())
 
-    def do_log(self,line):
+    def do_logs(self,line):
         print self.run_command('log', *line.split())
 
-    def complete_log(self, text, line, begidx, endidx):
+    def complete_logs(self, text, line, begidx, endidx):
         return self._complete_get_object('pod', text, line, begidx, endidx)
+
+    def do_log(self,line):
+        print self.logs(line)
+
+    def complete_logs(self, text, line, begidx, endidx):
+        return self.complete_logs(text, line, begidx, endidx)
 
     def _complete_get_object(self, obj, text, line, begidx, endidx):
         return [i for i in self._get_objects(obj) if i.startswith(text)]
 
     def _complete_command(self, text, line, begidx, endidx):
         parsed_line = self.parse_line(line)
-        if (not text or parsed_line.object) and parsed_line.object in self._kubernetes_objects  :
-            return self._complete_get_object(parsed_line.object, text, line, begidx, endidx)
-        else:
-            return [i for i in self._kubernetes_objects if i.startswith(text)]
+        try:
+            if (not text or parsed_line.object) and (parsed_line.object in self._kubernetes_objects or parsed_line.object.rstrip('s') in self._kubernetes_objects):
+                return self._complete_get_object(parsed_line.object, text, line, begidx, endidx)
+            else:
+                return [i for i in self._kubernetes_objects if i.startswith(text)]
+        except Exception, e:
+            logging.debug(e)
+            logging.debug(traceback.format_exc)
 
     def do_unset(self, line):
         if line in self._settables:
@@ -361,6 +368,10 @@ class KubectlShell(cmd.Cmd, object):
                 self._kubeconfig = os.path.expanduser('~/.kube/config')
 
         return self._kubeconfig
+
+    @property
+    def _k8sh_methods(self):
+        return [a[3:] for a in self.get_names() if a.startswith('do')]
     
     @property
     def base_command(self):
