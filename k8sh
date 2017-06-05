@@ -9,7 +9,7 @@ import traceback
 import atexit
 import logging
 
-# logging.basicConfig(filename='k8sh_debug.log',level=logging.DEBUG)
+logging.basicConfig(filename='k8sh_debug.log',level=logging.DEBUG)
 
 class KubectlLine():
 
@@ -216,11 +216,18 @@ class KubectlShell(cmd.Cmd, object):
     def do_create(self,line):
         print self.run_command('create', *line.split())
 
+    def do_log(self,line):
+        print self.run_command('log', *line.split())
+
+    def complete_log(self, text, line, begidx, endidx):
+        return self._complete_get_object('pod', text, line, begidx, endidx)
+
     def _complete_get_object(self, obj, text, line, begidx, endidx):
         return [i for i in self._get_objects(obj) if i.startswith(text)]
 
     def _complete_command(self, text, line, begidx, endidx):
-        if (not text or parsed_line.item) and parsed_line.object in self._kubernetes_objects  :
+        parsed_line = self.parse_line(line)
+        if (not text or parsed_line.object) and parsed_line.object in self._kubernetes_objects  :
             return self._complete_get_object(parsed_line.object, text, line, begidx, endidx)
         else:
             return [i for i in self._kubernetes_objects if i.startswith(text)]
