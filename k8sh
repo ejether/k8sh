@@ -9,7 +9,7 @@ import traceback
 import atexit
 import logging
 
-logging.basicConfig(filename='k8sh_debug.log',level=logging.DEBUG)
+#logging.basicConfig(filename='k8sh_debug.log',level=logging.DEBUG)
 
 class KubectlLine():
 
@@ -51,6 +51,9 @@ class KubectlLine():
         
         return None
 
+    def __str__(self):
+        return str({'command': self.command, 'object': self.object, 'value': self.value})
+
 
 
 class KubectlShell(cmd.Cmd, object):
@@ -61,6 +64,7 @@ class KubectlShell(cmd.Cmd, object):
     base_prompt = 'kubectl'
     parsed_line = None
     _kubeconfig = None
+    _all_namespaces = False
     
     _clusters = []
     
@@ -220,7 +224,7 @@ class KubectlShell(cmd.Cmd, object):
         return self._complete_get_object('pod', text, line, begidx, endidx)
 
     def do_log(self,line):
-        print self.logs(line)
+        print self.do_logs(line)
 
     def complete_logs(self, text, line, begidx, endidx):
         return self.complete_logs(text, line, begidx, endidx)
@@ -230,8 +234,9 @@ class KubectlShell(cmd.Cmd, object):
 
     def _complete_command(self, text, line, begidx, endidx):
         parsed_line = self.parse_line(line)
+        logging.debug(parsed_line)
         try:
-            if (not text or parsed_line.object) and (parsed_line.object in self._kubernetes_objects or parsed_line.object.rstrip('s') in self._kubernetes_objects):
+            if (not text or parsed_line.object) and (parsed_line.object in self._kubernetes_objects or (parsed_line.object and parsed_line.object.rstrip('s') in self._kubernetes_objects)):
                 return self._complete_get_object(parsed_line.object, text, line, begidx, endidx)
             else:
                 return [i for i in self._kubernetes_objects if i.startswith(text)]
@@ -266,8 +271,14 @@ class KubectlShell(cmd.Cmd, object):
         return [i for i in self._settables if i.startswith(text)]
 
     def do_set_namespace(self, line):	
+        self._all_namespaces = False
         self._current_namespace=line
-    	print(self._current_namespace)
+
+        # if line == 'all':
+        #     self._all_namespaces = True
+        #     self._current_namespace = None
+
+
 
     def complete_set_namespace(self, text, line, begidx, endidx):
         return [i for i in self.namespaces if i.startswith(text)]
@@ -380,6 +391,8 @@ class KubectlShell(cmd.Cmd, object):
 
     	if self._current_namespace:
     		command += ['--namespace={}'.format(self._current_namespace)]
+        # elif self._all_namespaces:
+        #     command += ['--all-namespaces']
 
         return command
 
