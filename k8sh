@@ -9,7 +9,7 @@ import traceback
 import atexit
 import logging
 
-#logging.basicConfig(filename='k8sh_debug.log',level=logging.DEBUG)
+logging.basicConfig(filename='k8sh_debug.log',level=logging.DEBUG)  
 
 class KubectlLine():
 
@@ -189,7 +189,7 @@ class KubectlShell(cmd.Cmd, object):
 
     def completedefault(self, text, line, begidx, endidx):
         return [i for i in self._kubectl_methods if i.startswith(text)]
-
+    
     def do_get(self,line):
         """ 
         Usage: get <kube_object_type> [<object>].
@@ -218,18 +218,25 @@ class KubectlShell(cmd.Cmd, object):
         print self.run_command('create', *line.split())
 
     def do_logs(self,line):
+        """ 
+        Usage: logs <pod> [<container>]
+        Example: logs pod-name
+        Outputs a the logs for the pod container
+        Does not yet work work '-f'
+        """
         print self.run_command('log', *line.split())
 
     def complete_logs(self, text, line, begidx, endidx):
         return self._complete_get_object('pod', text, line, begidx, endidx)
 
     def do_log(self,line):
-        print self.do_logs(line)
+        self.do_logs(line)
 
-    def complete_logs(self, text, line, begidx, endidx):
+    def complete_log(self, text, line, begidx, endidx):
         return self.complete_logs(text, line, begidx, endidx)
 
     def _complete_get_object(self, obj, text, line, begidx, endidx):
+        logging.debug(obj)
         return [i for i in self._get_objects(obj) if i.startswith(text)]
 
     def _complete_command(self, text, line, begidx, endidx):
@@ -329,6 +336,10 @@ class KubectlShell(cmd.Cmd, object):
         
         self.parsed_line = KubectlLine(line, is_completer)       
         return self.parsed_line
+
+    def _debug(self,*args):
+        for a in args:
+            logging.debug(a)
 
     @property
     def pods(self):
